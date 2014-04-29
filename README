@@ -1,0 +1,59 @@
+To run, enter the src directory and run
+
+./identify | ./grade
+
+The interesting arguments for identify are:
+a and b: These tell the identifier which ngrams to use.
+         a is the bottom limit, and b is the top limit.
+	 By default, a = 1 and b = 7
+	 Example: if a = 1 and b = 3, the system will use
+                  unigrams, bigrams and trigrams in order
+                  to identify the language
+n: number of lines per language that will be used for training.
+t: directory containing training data
+   2 are available in the data directory:
+   - train_wiki: the original training data, 1000 lines per langauge
+   - train_news: from the same source, but news articles rather than
+                 Wikipedia. 100K lines per langauge
+
+grade has a -v argument that is 0 by default. If you set
+it to 1, grade will report the lines you identified incorrectly,
+along with line numbers, true langauge, and identified langauge.
+
+The identifier trains by taking all features of an langauge (here,
+character ngrams) and computing a log-rank for each feature.
+When given an input string, it sums up the log-ranks of every feature
+for every langauge, and chooses the language with the lowest sum of ranks.
+
+A file ./script.sh is also included. This was used to see the effects of 
+changing the arguments to identify. ngrams.pdf shows some of the results
+from this script; it plots using only ngrams of a single length with a training
+set of size 1000. Another interesting result was that with only 5 sentences
+in each langauge, the current model acheives 80% precision on the dev set.
+
+The biggest problem seemed to be the restrictions imposed by the length of the
+segments in the dev set. Some segments consisted of only proper nouns, which were
+indistinguishable between langauges. Others cut words in the middle, which seems
+like it may cause problems, or consists of many digits.
+
+Other things I tried was weighting with frequencies rather than ranks (acheiving
+approximately the 87% baseline), and voting rather than scoring. For each feature, 
+the language that "won" that feature got a vote. The language with the most votes
+then got the segment. I also tried weighing these votes by sequence length (since
+it is more impressive to get a sequence of 7 characters right than a sequence of 
+3 characters) and tried changing vote weights by how much lower the winning language
+ranked the feature than the second-place language. All of the attemts using votes
+got the same or slightly worse performance than the current system.
+
+The final attempts to improve the system consisted of pre-processing input. This 
+includes removing punctuation, making input lowercase, and removing digits. None
+led to improvement; in fact, using lowercase and removing punctuation makes the system
+worse. It appears (and makes sense) that languages use punctuation and capitalization 
+in different ways (e.g. German capitalizes nouns, English uses 's to denote possession).
+Refinements such as only removing some punctuation did not improve the system.
+
+Note that the final submission was run with 
+a = 1
+b = 7
+n = 100000
+t = train_news

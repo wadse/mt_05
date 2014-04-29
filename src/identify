@@ -1,0 +1,107 @@
+#!/usr/bin/env python
+import math
+import sys
+import optparse
+import string
+from collections import defaultdict
+
+optparser = optparse.OptionParser()
+optparser.add_option("-t", "--train", dest="train", default="../data/train_news/", 
+                     help="Data filename prefix (default=../data/train_news/)")
+optparser.add_option("-s", "--suffix", dest="suffix", default="_train", 
+                     help="Data filename suffix (default=_train")
+optparser.add_option("-i", "--input", dest="input", default="../data/dev/dev_set", 
+                     help="Name of input file (default=data/dev/dev_set")
+optparser.add_option("-n", "--numlines", dest="numlines", type=int, default=1000, 
+                     help="Number of input lines to use (default=1000)")
+optparser.add_option("-a", "--min", dest="min", type=int, default=1, 
+                     help="Smallest length ngrams to use (default=1)")
+optparser.add_option("-b", "--max", dest="max", type=int, default=7, 
+                     help="Largest length ngrams to use, (default=5)")
+(opts, _) = optparser.parse_args()
+
+lang = ['eng', 'fra', 'deu', 'ita', 'spa']
+suffix = opts.suffix
+train_dir = opts.train
+input_file = opts.input
+
+# Function to generate ngrams
+# Example:
+# If bot = 1 and top = 4, will produce all unigrams, bigrams, trigrams and 4-grams in line
+def gen_ngrams(line, bot, top):
+    all_grams = []
+    l = line.strip()
+    for n in xrange(bot, top+1):
+        ngrams = [''.join(l[c-n+1:c+1]) for c in range(n-1, len(l))]
+        all_grams.extend(ngrams)
+    return all_grams
+
+# Chooses a language based on ranks provided
+# Features = features of input 
+# Dicts = dictionaries containing ranks/logranks of features in languages
+# K = rank to assign to previously unseen features
+#     In this script, K is the max rank across all langauges
+def choose_rank(features, dicts, K):
+    samples = []
+    for d in dicts:
+        sample = 0.0
+        for feature in features:
+            if feature in d: sample += d[feature]
+            else: sample += K
+        samples.append(sample)
+    min_index = samples.index(min(samples))
+    return lang[min_index]
+
+# Build dicitionaries, one for each langauge
+# Each dictionary contains the log-rank of each
+# features, rather than just the rank or just the 
+# frequency. This can be altered, but keep in mind
+# that choose_rank uses the minimum score (whereas if you
+# switch this function to frequencies, you should
+# be looking for the maximum score)
+def build_dicts():
+    dicts = []
+    K = 0.0
+    # loop through all the languages
+    for i in xrange(len(lang)):
+        sys.stderr.write('Building freq for ' + lang[i] + '...\n')
+        tempfreq = defaultdict(int)
+        # keep track so we can implement line cutoff
+        linenum = 0
+        for line in open(train_dir + lang[i] + suffix):
+            if linenum == opts.numlines: break
+            linenum += 1
+            features = gen_ngrams(line, opts.min, opts.max)
+            for feature in features:      
+                tempfreq[feature] += 1
+        K = max(K, len(tempfreq.keys()))
+        sys.stderr.write('Building ranks for ' + lang[i] + '...\n')
+        # Here, ranking is done such that any features that have the same
+        # frequency share the same rank
+        # e.g. 1, 2, 2, 4, 5, 6, 6, 6, 6 is a possible ranking
+        ranked = sorted(tempfreq.keys(), key=tempfreq.get, reverse=True)
+        dict = {}
+        lastfreq, lastrank = (0, 0)
+        for j, key in enumerate(ranked):
+            freq = tempfreq[key]
+            if freq != lastfreq:
+                dict[key] = j
+                lastfreq, lastrank = (freq, j)
+            else: dict[key] = lastrank
+        # Convert all ranks to log-ranks
+        for key in dict:
+            dict[key] = math.log(dict[key] + 1)
+        dicts.append(dict)
+    # Convert K as well for consistency
+    K = math.log(K)
+    return dicts, K
+
+(dicts, K) = build_dicts()
+
+# Classify language
+sys.stderr.write('Now classifying...\n')
+for i, line in enumerate(open(input_file)):
+    if i % 100 == 0: sys.stderr.write('.')
+    features = gen_ngrams(line, opts.min, opts.max)
+    print choose_rank(features, dicts, K)
+sys.stderr.write('\n')

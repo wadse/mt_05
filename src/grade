@@ -1,0 +1,29 @@
+#!/usr/bin/env python
+import sys
+import optparse
+
+optparser = optparse.OptionParser()
+optparser.add_option("-s", "--solution", dest="solution", default="../data/solution/dev_solution", 
+                     help="Path to solution set")
+optparser.add_option("-i", "--input", dest="input", default="../data/dev/dev_set", 
+                     help="Path to input set")
+optparser.add_option("-v", "--verbose", dest="verbose", type=int, default=0,
+                     help="Make 1 to display which lines were assessed incorrectly as follows: line number, true lang, identified lang, line")
+
+(opts, _) = optparser.parse_args()
+
+input = []
+if opts.verbose:
+  for line in open(opts.input):
+    input.append(line.strip())
+
+num_correct = 0
+total = 0
+for i, (l1, l2) in enumerate(zip(open(opts.solution), sys.stdin)):
+  if opts.verbose and i == 0: sys.stderr.write('\t'.join(['#', "Sol'n", "ID", "Input"]) + '\n')
+  total = total + 1
+  if l1 == l2:
+    num_correct = num_correct + 1
+  elif opts.verbose: sys.stderr.write('\t'.join([str(i), l1.strip(), l2.strip(), input[i]]) + '\n')
+
+print num_correct / float(total)
